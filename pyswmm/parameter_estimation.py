@@ -64,7 +64,7 @@ def save_data_for_estimation(filename, inputs, groups={}):
     with Simulation(filename) as sim:
         link_ids = [l.linkid for l in Links(sim)]
         node_ids = [n.nodeid for n in Nodes(sim)]
-        print sim.flow_units
+        print(sim.flow_units)
     # Extract results
     with Simulation(filename) as sim:
         links = Links(sim)
@@ -130,7 +130,7 @@ def save_data_for_estimation(filename, inputs, groups={}):
     K = {}
     for node in G.nodes():
         K[node] = estimate_K(G.node[node]['volume'], G.node[node]['outflow'])
-        print node
+        print(node)
     
     # TODO confirm that input values are the proper ones
     plt.plot(runoffs['2'])
@@ -275,7 +275,7 @@ def graph(filename, groups={}):
 
 
 # TODO there is a problem with 4states_simple when there is a storage tank
-fname = 'C:/Users/1/Documents/GitHub/mpc/Paper ACC 2018/models/4 states/4states_simple.inp'
+fname = 'C:/Users/ga.riano949/Documents/GitHub/mpc/Paper ACC 2018/models/4 states/4states_simple.inp'
 g = {'T2' : 
         {
             'tanks':
@@ -287,4 +287,4 @@ g = {'T2' :
 # G = graph(fname, g)
 # K = save_data_for_estimation(fname, ('2','3',), groups=g)
 K = save_data_for_estimation(fname, ('2','3',))
-print K
+print(K)
