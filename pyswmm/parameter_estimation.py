@@ -1,6 +1,10 @@
 from pyswmm import Simulation, Nodes, Links
+from input_file import *
 from scipy.optimize import minimize
+from math import sqrt
+import pdb
 import matplotlib.pyplot as plt
+import datetime as dt
 import networkx as nx
 import numpy as np
 from numpy import linalg as LA
@@ -11,7 +15,7 @@ from collections import defaultdict
 # for a urban drainage system modelled in 
 # SWMM using pyswmm
 
-def save_data_for_estimation(filename, inputs, groups={}):
+def save_data_for_estimation(filename, lmbda, inputs, groups={}):
     '''Saves the data required for the parameter estimation
     algorithm in Matlab (i.e., the ssest function)
 
@@ -36,8 +40,10 @@ def save_data_for_estimation(filename, inputs, groups={}):
 
     Args:
         filename: path to the .inp SWMM file
-        inputs: list of nodes with lateral inflows (i.e., the nodes
-            where the input signals get into the system)
+        lmbda: scale distance factor
+        inputs: dict whose keys are the nodes with lateral inflows 
+            (i.e., the nodes where the input signals get into the system),
+            and the values ares lists with the runoff values
         groups: dict of groups of retention structures
             groups = {'group_id' : 
                             {'tanks': [tank1, tank2, ...],
@@ -65,11 +71,34 @@ def save_data_for_estimation(filename, inputs, groups={}):
         link_ids = [l.linkid for l in Links(sim)]
         node_ids = [n.nodeid for n in Nodes(sim)]
         print(sim.flow_units)
+    
+    dtime = 300/sqrt(lmbda)
+    
+    def GetMaxFlow(flows):        
+        maks=max(flows, key=lambda k: len(flows[k]))
+        return len(flows[maks])
+    
+    sim_time = 3*dtime*GetMaxFlow(inputs) # in seconds
+    ldate = dt.datetime(2017,1,1) + dt.timedelta(0,sim_time)
+    
+    start_date = '01/01/2017'
+    start_time = '00:00'
+    last_date = '{m}/{d}/{y}'.format(m=str(ldate.month).zfill(2), d=str(ldate.day).zfill(2), y=ldate.year)
+    last_time = '{h}:{m}'.format(h=str(ldate.hour).zfill(2), m=str(ldate.minute).zfill(2))
+
+    # Set simulation times
+    set_sim_time(filename, start_date, start_time, last_date, last_time)
+    t = 0
+
     # Extract results
     with Simulation(filename) as sim:
         links = Links(sim)
         nodes = Nodes(sim)
+        sim.step_advance(dtime)
         for step in sim:
+            for i in inputs.keys():
+                nodes[i].generated_inflow(inputs[i][t])
+                t += 1
             for link in link_ids:
                 l = links[link]
                 volumes[link].append(l.volume)
@@ -78,7 +107,7 @@ def save_data_for_estimation(filename, inputs, groups={}):
                 n = nodes[node]
                 volumes[node].append(n.volume)
                 inflows[node].append(n.total_inflow)
-                if node in inputs:    
+                if node in inputs.keys():    
                     runoffs[node].append(n.lateral_inflow)
                
     # Updates volumes and outflows in G to estimate K
@@ -132,10 +161,9 @@ def save_data_for_estimation(filename, inputs, groups={}):
         K[node] = estimate_K(G.node[node]['volume'], G.node[node]['outflow'])
         print(node)
     
-    # TODO confirm that input values are the proper ones
     plt.plot(runoffs['2'])
     plt.show()
-    return K
+    return (G, K)
 
 def estimate_K(V, Q, plot=True):
     '''Returns the value of the constant k for the virtual
@@ -272,19 +300,3 @@ def graph(filename, groups={}):
                 G.node[group]['tanks'] = tlist
                 G.node[group]['outflows'] = olist
     return G
-
-
-# TODO there is a problem with 4states_simple when there is a storage tank
-fname = 'C:/Users/ga.riano949/Documents/GitHub/mpc/Paper ACC 2018/models/4 states/4states_simple.inp'
-g = {'T2' : 
-        {
-            'tanks':
-                ['T2A', 'T2B'], 
-            'outflows': 
-                ['T2B']
-        }
-    }
-# G = graph(fname, g)
-# K = save_data_for_estimation(fname, ('2','3',), groups=g)
-K = save_data_for_estimation(fname, ('2','3',))
-print(K)
